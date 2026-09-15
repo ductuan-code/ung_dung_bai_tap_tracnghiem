@@ -33,7 +33,7 @@ Môn: Lập trình Mobile đa nền tảng
 
 **Nguyên tắc quan trọng: 1 Backend API duy nhất phục vụ CẢ 2 client** (Mobile + Web). Không tách 2 backend riêng — tránh trùng lặp logic, đúng tinh thần "không over-engineering".
 
-**Công nghệ Web Admin — đã chốt: React (JavaScript, không TypeScript)** — đồng bộ ngôn ngữ với Mobile, học lại được kiến thức React đã có, tách biệt hoàn toàn khỏi Backend qua REST API.
+**Công nghệ Web Admin — đã chốt: React + TypeScript** — đồng bộ ngôn ngữ với Mobile (cả 2 đều dùng TypeScript), tách biệt hoàn toàn khỏi Backend qua REST API.
 
 ---
 
@@ -167,9 +167,9 @@ Các bảng `Categories`, `Quizzes`, `Questions`, `Answers`, `Results`, `ResultD
 
 | Layer | Quy tắc | Ví dụ |
 |---|---|---|
-| **Web — Page** | `{Tên}Page` | `LoginPage.js`, `CategoriesPage.js`, `QuizzesPage.js`, `QuizEditPage.js` |
-| **Web — Component** | PascalCase | `QuizTable.js`, `QuestionForm.js`, `AnswerRow.js` |
-| **Web — Service (gọi API)** | `{entity}Service.js` (giống pattern Mobile) | `authService.js`, `categoryService.js`, `quizService.js` |
+| **Web — Page** | `{Tên}Page` | `LoginPage.tsx`, `CategoriesPage.tsx`, `QuizzesPage.tsx`, `QuizEditPage.tsx` |
+| **Web — Component** | PascalCase | `QuizTable.tsx`, `QuestionForm.tsx`, `AnswerRow.tsx` |
+| **Web — Service (gọi API)** | `{entity}Service.ts` (giống pattern Mobile) | `authService.ts`, `categoryService.ts`, `quizService.ts` |
 
 *(Backend, Database, Mobile naming — giữ nguyên như V1.0.)*
 
@@ -178,24 +178,24 @@ Các bảng `Categories`, `Quizzes`, `Questions`, `Answers`, `Results`, `ResultD
 ## 9. CẤU TRÚC THƯ MỤC — BỔ SUNG
 
 ```
-QuizApp.Web/                 ← MỚI (React, JavaScript)
+QuizApp.Web/                 ← MỚI (React, TypeScript)
 ├── src/
 │   ├── pages/
-│   │   ├── LoginPage.js
-│   │   ├── CategoriesPage.js
-│   │   ├── QuizzesPage.js
-│   │   └── QuizEditPage.js
+│   │   ├── LoginPage.tsx
+│   │   ├── CategoriesPage.tsx
+│   │   ├── QuizzesPage.tsx
+│   │   └── QuizEditPage.tsx
 │   ├── components/
-│   │   ├── QuizTable.js
-│   │   ├── QuestionForm.js
-│   │   └── AnswerRow.js
+│   │   ├── QuizTable.tsx
+│   │   ├── QuestionForm.tsx
+│   │   └── AnswerRow.tsx
 │   ├── services/
-│   │   ├── apiClient.js
-│   │   ├── authService.js
-│   │   ├── categoryService.js
-│   │   └── quizService.js
+│   │   ├── apiClient.ts
+│   │   ├── authService.ts
+│   │   ├── categoryService.ts
+│   │   └── quizService.ts
 │   └── contexts/
-│       └── AuthContext.js
+│       └── AuthContext.tsx
 ```
 
 *(`QuizApp/` Mobile và `QuizApp.Api/` Backend — giữ nguyên cấu trúc như V1.0, không đổi.)*
