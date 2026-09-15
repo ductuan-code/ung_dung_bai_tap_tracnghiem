@@ -1,0 +1,116 @@
+export const Colors = {
+  light: {
+    background: '#F5F7FA',
+    surface: '#FFFFFF',
+    primary: '#2563EB',
+    primaryDark: '#1D4ED8',
+    secondary: '#7C3AED',
+    accent: '#0EA5E9',
+    text: '#111827',
+    textSecondary: '#6B7280',
+    textInverse: '#FFFFFF',
+    border: '#E5E7EB',
+    borderFocus: '#2563EB',
+    correct: '#16A34A',
+    correctBg: '#DCFCE7',
+    incorrect: '#DC2626',
+    incorrectBg: '#FEE2E2',
+    warning: '#D97706',
+    warningBg: '#FEF3C7',
+    card: '#FFFFFF',
+    tabBar: '#FFFFFF',
+    tabBarBorder: '#E5E7EB',
+    tabBarActive: '#2563EB',
+    tabBarInactive: '#9CA3AF',
+    placeholder: '#9CA3AF',
+    disabled: '#D1D5DB',
+    disabledText: '#9CA3AF',
+    shadow: 'rgba(0, 0, 0, 0.08)',
+    overlay: 'rgba(0, 0, 0, 0.4)',
+  },
+  dark: {
+    background: '#0F172A',
+    surface: '#1E293B',
+    primary: '#3B82F6',
+    primaryDark: '#2563EB',
+    secondary: '#8B5CF6',
+    accent: '#38BDF8',
+    text: '#F1F5F9',
+    textSecondary: '#94A3B8',
+    textInverse: '#0F172A',
+    border: '#334155',
+    borderFocus: '#3B82F6',
+    correct: '#22C55E',
+    correctBg: '#14532D',
+    incorrect: '#EF4444',
+    incorrectBg: '#7F1D1D',
+    warning: '#F59E0B',
+    warningBg: '#78350F',
+    card: '#1E293B',
+    tabBar: '#1E293B',
+    tabBarBorder: '#334155',
+    tabBarActive: '#3B82F6',
+    tabBarInactive: '#64748B',
+    placeholder: '#64748B',
+    disabled: '#475569',
+    disabledText: '#64748B',
+    shadow: 'rgba(0, 0, 0, 0.3)',
+    overlay: 'rgba(0, 0, 0, 0.6)',
+  },
+} as const;
+
+export const Spacing = {
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+} as const;
+
+export const Radius = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 24,
+  full: 9999,
+} as const;
+
+export const FontSize = {
+  xs: 12,
+  sm: 14,
+  md: 16,
+  lg: 18,
+  xl: 22,
+  xxl: 28,
+  xxxl: 36,
+} as const;
+
+export const FontWeight = {
+  regular: '400' as const,
+  medium: '500' as const,
+  semibold: '600' as const,
+  bold: '700' as const,
+  extrabold: '800' as const,
+};
+
+export const Shadow = {
+  sm: {
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  md: {
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  lg: {
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+} as const;
