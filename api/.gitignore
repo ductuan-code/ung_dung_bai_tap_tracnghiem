@@ -1,0 +1,13 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.log
+
+## EF Core Migrations (sẽ thêm sau khi có migration)
+# Migrations/
+
+## appsettings chứa secret — chỉ ignore production, giữ Development
+appsettings.Production.json
