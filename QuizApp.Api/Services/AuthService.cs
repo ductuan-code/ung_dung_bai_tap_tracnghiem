@@ -7,6 +7,19 @@ namespace QuizApp.Api.Services;
 
 public class AuthService(IUserRepository users, IPasswordHasher<User> hasher, JwtTokenService tokens)
 {
+    public async Task<ChangePasswordOutcome> ChangePasswordAsync(int id, ChangePasswordRequest request, CancellationToken ct)
+    {
+        var user = await users.FindByIdAsync(id, ct);
+        if (user is null) return ChangePasswordOutcome.UserMissing;
+        if (hasher.VerifyHashedPassword(user, user.PasswordHash, request.CurrentPassword) == PasswordVerificationResult.Failed)
+            return ChangePasswordOutcome.WrongPassword;
+        if (request.NewPassword == request.CurrentPassword)
+            return ChangePasswordOutcome.SamePassword;
+        user.PasswordHash = hasher.HashPassword(user, request.NewPassword);
+        await users.SaveChangesAsync(ct);
+        return ChangePasswordOutcome.Success;
+    }
+
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request, CancellationToken ct)
     {
         if (await users.ExistsAsync(request.Username, request.Email, ct))
@@ -37,3 +50,5 @@ public class AuthService(IUserRepository users, IPasswordHasher<User> hasher, Jw
         return user is null ? null : new(user.UserId, user.Username, user.Email, user.Role);
     }
 }
+
+public enum ChangePasswordOutcome { Success, UserMissing, WrongPassword, SamePassword }
