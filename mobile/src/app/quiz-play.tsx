@@ -1,16 +1,18 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   Alert,
-  StyleSheet,
-  SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams, useNavigation } from 'expo-router';
+import { usePreventRemove } from 'expo-router/react-navigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
+import { useScreenData } from '@/hooks/useScreenData';
 import { quizService } from '@/services/quizService';
 import { resultService } from '@/services/resultService';
 import { ProgressBar } from '@/components/ProgressBar';
@@ -18,241 +20,324 @@ import { OptionButton } from '@/components/OptionButton';
 import { PrimaryButton } from '@/components/PrimaryButton';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorMessage } from '@/components/ErrorMessage';
-import type { Question, UserAnswer } from '@/types';
-
+import { EmptyState } from '@/components/EmptyState';
+import { ConfirmSubmitModal } from '@/components/ConfirmSubmitModal';
+import { QuestionNavigator } from '@/components/QuestionNavigator';
+import { errorMessage, routeId } from '@/utils/study';
+import { useAttemptTimer } from '@/hooks/useAttemptTimer';
+import { formatTime } from '@/utils/attemptClock';
 const OPTION_LABELS = ['A', 'B', 'C', 'D'];
 
 export default function QuizPlayScreen() {
-  const { colors, spacing, fontSize, fontWeight, radius, shadow } = useTheme();
   const { quizId } = useLocalSearchParams<{ quizId: string }>();
-
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [userAnswers, setUserAnswers] = useState<Map<number, number>>(new Map());
-  const [loading, setLoading] = useState(true);
+  // Route identity resets all local selections when a different quiz is opened.
+  return <QuizAttempt key={quizId} quizId={quizId} />;
+}
+function QuizAttempt({ quizId }: { quizId: string }) {
+  const { colors } = useTheme();
+  const navigation = useNavigation();
+  const scroll = useRef<ScrollView>(null);
+  const submitLock = useRef(false);
+  const [current, setCurrent] = useState(0);
+  const [answers, setAnswers] = useState<Map<number, number>>(new Map());
+  const [confirm, setConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchQuestions = useCallback(async () => {
-    if (!quizId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await quizService.getQuestions(Number(quizId));
-      setQuestions(data);
-    } catch {
-      setError('Không thể tải câu hỏi. Vui lòng thử lại.');
-    } finally {
-      setLoading(false);
-    }
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [completedId, setCompletedId] = useState<number | null>(null);
+  const loader = useCallback(async () => {
+    const id = routeId(quizId);
+    const [quiz, questions] = await Promise.all([
+      quizService.getById(id),
+      quizService.getQuestions(id),
+    ]);
+    return { quiz, questions };
   }, [quizId]);
+  const { data, loading, error, refresh } = useScreenData(loader);
+  const questions = data?.questions ?? [];
+  const question = questions[current];
+  const answered = questions.filter((q) => answers.has(q.questionId)).length;
+  const timer = useAttemptTimer(questions.length > 0 && !loading, () => {
+    void submit();
+  });
+  const locked = timer.attempted || timer.remaining === 0;
 
-  useEffect(() => {
-    fetchQuestions();
-  }, [fetchQuestions]);
-
-  const currentQuestion = questions[currentIndex];
-  const totalQuestions = questions.length;
-  const selectedAnswerId = currentQuestion ? userAnswers.get(currentQuestion.questionId) : undefined;
-  const answeredCount = userAnswers.size;
-
-  function selectAnswer(answerId: number) {
-    if (!currentQuestion) return;
-    setUserAnswers((prev) => new Map(prev).set(currentQuestion.questionId, answerId));
-  }
-
-  function goNext() {
-    if (currentIndex < totalQuestions - 1) {
-      setCurrentIndex((i) => i + 1);
-    }
-  }
-
-  function goPrev() {
-    if (currentIndex > 0) {
-      setCurrentIndex((i) => i - 1);
-    }
-  }
-
-  function handleSubmit() {
-    const unanswered = totalQuestions - answeredCount;
-    if (unanswered > 0) {
+  usePreventRemove(
+    questions.length > 0 && completedId === null && !submitError,
+    ({ data: actionData }) => {
+      if (submitLock.current) return;
       Alert.alert(
-        'Còn câu chưa trả lời',
-        `Bạn còn ${unanswered} câu chưa chọn đáp án. Vẫn muốn nộp bài?`,
+        'Thoát bài thi?',
+        'Các lựa chọn chưa nộp sẽ không được lưu.',
         [
           { text: 'Tiếp tục làm', style: 'cancel' },
-          { text: 'Nộp bài', style: 'destructive', onPress: submitAnswers },
+          {
+            text: 'Thoát',
+            style: 'destructive',
+            onPress: () => {
+              if (!submitLock.current) navigation.dispatch(actionData.action);
+            },
+          },
         ],
       );
-    } else {
-      Alert.alert('Nộp bài', 'Bạn có chắc muốn nộp bài không?', [
-        { text: 'Huỷ', style: 'cancel' },
-        { text: 'Nộp', onPress: submitAnswers },
-      ]);
-    }
-  }
-
-  async function submitAnswers() {
-    if (!quizId) return;
-    setSubmitting(true);
-    try {
-      const answers: UserAnswer[] = Array.from(userAnswers.entries()).map(
-        ([questionId, answerId]) => ({ questionId, answerId }),
-      );
-      const result = await resultService.submit({
-        quizId: Number(quizId),
-        userAnswers: answers,
+    },
+  );
+  useEffect(() => {
+    if (completedId !== null)
+      router.replace({
+        pathname: '/result',
+        params: { resultId: completedId },
       });
-      router.replace({ pathname: '/result', params: { resultId: result.resultId } });
-    } catch {
-      Alert.alert('Lỗi', 'Không thể nộp bài. Vui lòng thử lại.');
-    } finally {
+  }, [completedId]);
+
+  function goTo(index: number) {
+    if (!timer.canEdit()) return;
+    setCurrent(index);
+    scroll.current?.scrollTo({ y: 0, animated: true });
+  }
+  async function submit() {
+    if (!data || questions.length === 0 || !timer.claimSubmit()) return;
+    // Ref closes the double-tap window before React renders the disabled state.
+    submitLock.current = true;
+    setSubmitting(true);
+    setConfirm(false);
+    setSubmitError(null);
+    try {
+      const result = await resultService.submit({
+        quizId: data.quiz.quizId,
+        userAnswers: questions.flatMap((q) => {
+          const answerId = answers.get(q.questionId);
+          return answerId === undefined
+            ? []
+            : [{ questionId: q.questionId, answerId }];
+        }),
+      });
+      setConfirm(false);
+      setCompletedId(result.resultId);
+      // Keep locked until navigation completes; never submit the successful attempt twice.
+    } catch (error) {
+      setSubmitError(errorMessage(error));
+      // No retry in this attempt: the server may have saved a lost response.
       setSubmitting(false);
     }
   }
-
-  if (loading) return <LoadingScreen message="Đang tải câu hỏi..." />;
-  if (error) {
-    return (
-      <SafeAreaView style={[styles.flex, { backgroundColor: colors.background, padding: spacing.lg }]}>
-        <ErrorMessage message={error} onRetry={fetchQuestions} />
-      </SafeAreaView>
-    );
-  }
-  if (!currentQuestion) return null;
-
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm }]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          paddingHorizontal: 20,
+          paddingVertical: 12,
+        }}
+      >
         <TouchableOpacity
-          onPress={() =>
-            Alert.alert('Thoát bài thi', 'Tiến trình sẽ bị mất. Bạn có muốn thoát?', [
-              { text: 'Ở lại', style: 'cancel' },
-              { text: 'Thoát', style: 'destructive', onPress: () => router.back() },
-            ])
-          }
+          disabled={submitting}
           accessibilityRole="button"
           accessibilityLabel="Thoát bài thi"
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.replace('/(tabs)')
+          }
+          style={{ padding: 10 }}
         >
-          <Ionicons name="close" size={24} color={colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={[{ color: colors.text, fontSize: fontSize.sm, fontWeight: fontWeight.semibold }]}>
-            Câu {currentIndex + 1}/{totalQuestions}
-          </Text>
-          <Text style={[{ color: colors.textSecondary, fontSize: fontSize.xs }]}>
-            Đã trả lời: {answeredCount}/{totalQuestions}
-          </Text>
-        </View>
-      </View>
-
-      {/* Progress */}
-      <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md }}>
-        <ProgressBar current={currentIndex + 1} total={totalQuestions} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Question card */}
-        <View style={[styles.questionCard, { backgroundColor: colors.card, borderRadius: radius.lg, borderColor: colors.border, ...shadow.sm }]}>
-          <Text style={[{ color: colors.textSecondary, fontSize: fontSize.xs, fontWeight: fontWeight.medium }]}>
-            CÂU HỎI {currentIndex + 1}
-          </Text>
-          <Text style={[styles.questionContent, { color: colors.text, fontSize: fontSize.lg, fontWeight: fontWeight.semibold }]}>
-            {currentQuestion.content}
-          </Text>
-        </View>
-
-        {/* Options */}
-        <View style={{ gap: 10 }}>
-          {currentQuestion.answers.map((answer, idx) => (
-            <OptionButton
-              key={answer.answerId}
-              label={OPTION_LABELS[idx] ?? String(idx + 1)}
-              content={answer.content}
-              state={selectedAnswerId === answer.answerId ? 'selected' : 'default'}
-              onPress={() => selectAnswer(answer.answerId)}
-            />
-          ))}
-        </View>
-
-        {/* Navigation */}
-        <View style={styles.navRow}>
-          <TouchableOpacity
-            style={[
-              styles.navBtn,
-              {
-                backgroundColor: currentIndex === 0 ? colors.disabled : colors.surface,
-                borderColor: colors.border,
-                borderRadius: radius.md,
-              },
-            ]}
-            onPress={goPrev}
-            disabled={currentIndex === 0}
-            accessibilityRole="button"
-            accessibilityLabel="Câu trước"
+        <View style={{ flex: 1, gap: 5 }}>
+          <Text
+            numberOfLines={2}
+            style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}
           >
-            <Ionicons name="arrow-back" size={20} color={currentIndex === 0 ? colors.disabledText : colors.text} />
-            <Text style={[{ color: currentIndex === 0 ? colors.disabledText : colors.text, fontSize: fontSize.sm }]}>
-              Trước
+            {data?.quiz.title ?? 'Làm bài'}
+          </Text>
+          {questions.length > 0 && (
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+              Câu {current + 1} / {questions.length}
             </Text>
-          </TouchableOpacity>
-
-          {currentIndex < totalQuestions - 1 ? (
-            <TouchableOpacity
-              style={[styles.navBtn, { backgroundColor: colors.primary, borderColor: colors.primary, borderRadius: radius.md }]}
-              onPress={goNext}
-              accessibilityRole="button"
-              accessibilityLabel="Câu tiếp theo"
-            >
-              <Text style={[{ color: colors.textInverse, fontSize: fontSize.sm, fontWeight: fontWeight.semibold }]}>
-                Tiếp
-              </Text>
-              <Ionicons name="arrow-forward" size={20} color={colors.textInverse} />
-            </TouchableOpacity>
-          ) : (
-            <PrimaryButton
-              title={submitting ? 'Đang nộp...' : 'Nộp bài'}
-              onPress={handleSubmit}
-              loading={submitting}
-              style={{ flex: 1, height: 44 }}
-            />
           )}
         </View>
-      </ScrollView>
+      </View>
+      {questions.length > 0 && (
+        <View style={{ paddingHorizontal: 20, paddingBottom: 12, gap: 8 }}>
+          <Text
+            accessibilityLabel={
+              'Thời gian còn lại ' + formatTime(timer.remaining)
+            }
+            style={{
+              fontSize: 22,
+              fontWeight: '800',
+              color:
+                timer.remaining > 30
+                  ? colors.primary
+                  : timer.remaining > 10
+                    ? colors.warning
+                    : colors.incorrect,
+            }}
+          >
+            ⏱ {formatTime(timer.remaining)}
+          </Text>
+          {submitting && (
+            <View
+              style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}
+            >
+              <ActivityIndicator color={colors.primary} />
+              <Text style={{ color: colors.textSecondary, flex: 1 }}>
+                {timer.remaining === 0
+                  ? 'Hết thời gian! Bài của bạn đang được nộp...'
+                  : 'Đang nộp bài...'}
+              </Text>
+            </View>
+          )}
+          {submitError && (
+            <>
+              <ErrorMessage message={submitError} />
+              <Text style={{ color: colors.textSecondary }}>
+                Bài đã khóa. Kiểm tra lịch sử để biết hệ thống đã lưu kết quả
+                chưa.
+              </Text>
+              <PrimaryButton
+                title="Xem lịch sử"
+                onPress={() => router.replace('/(tabs)/history')}
+              />
+            </>
+          )}
+        </View>
+      )}
+      {loading ? (
+        <LoadingScreen message="Đang tải câu hỏi..." />
+      ) : error ? (
+        <View style={{ padding: 20 }}>
+          <ErrorMessage message={error} onRetry={refresh} />
+        </View>
+      ) : !question ? (
+        <View style={{ padding: 20 }}>
+          <EmptyState
+            title="Đề chưa có câu hỏi"
+            message="Quay lại danh sách để chọn một đề khác."
+          />
+        </View>
+      ) : (
+        <>
+          <View style={{ paddingHorizontal: 20, paddingBottom: 18, gap: 10 }}>
+            <ProgressBar current={current + 1} total={questions.length} />
+            <Text style={{ color: colors.textSecondary, fontSize: 12 }}>
+              Đã trả lời: {answered}/{questions.length}
+            </Text>
+          </View>
+          <ScrollView
+            ref={scroll}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingBottom: 28,
+              gap: 20,
+            }}
+          >
+            <View
+              style={{
+                padding: 22,
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 22,
+                backgroundColor: colors.card,
+                gap: 14,
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.primary,
+                  fontSize: 12,
+                  fontWeight: '700',
+                }}
+              >
+                CÂU HỎI {current + 1}
+              </Text>
+              <Text
+                style={{
+                  color: colors.text,
+                  fontSize: 20,
+                  lineHeight: 30,
+                  fontWeight: '600',
+                }}
+              >
+                {question.content}
+              </Text>
+            </View>
+            <View style={{ gap: 12 }}>
+              {question.answers.map((answer, index) => (
+                <OptionButton
+                  key={answer.answerId}
+                  label={OPTION_LABELS[index] ?? String(index + 1)}
+                  content={answer.content}
+                  disabled={locked}
+                  state={
+                    answers.get(question.questionId) === answer.answerId
+                      ? 'selected'
+                      : 'default'
+                  }
+                  onPress={() => {
+                    if (timer.canEdit())
+                      setAnswers((previous) =>
+                        new Map(previous).set(
+                          question.questionId,
+                          answer.answerId,
+                        ),
+                      );
+                  }}
+                />
+              ))}
+            </View>
+            <QuestionNavigator
+              questions={questions}
+              answers={answers}
+              current={current}
+              disabled={locked}
+              onSelect={goTo}
+            />
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <PrimaryButton
+                title="Câu trước"
+                variant="outline"
+                disabled={current === 0 || locked}
+                onPress={() => goTo(current - 1)}
+                style={{ flex: 1, paddingHorizontal: 12 }}
+              />
+              {current < questions.length - 1 ? (
+                <PrimaryButton
+                  title="Câu tiếp"
+                  disabled={locked}
+                  onPress={() => goTo(current + 1)}
+                  style={{ flex: 1, paddingHorizontal: 12 }}
+                />
+              ) : (
+                <PrimaryButton
+                  title="Nộp bài"
+                  disabled={locked}
+                  loading={submitting}
+                  onPress={() => {
+                    if (!timer.canEdit()) {
+                      void submit();
+                      return;
+                    }
+                    setSubmitError(null);
+                    setConfirm(true);
+                  }}
+                  style={{ flex: 1, paddingHorizontal: 12 }}
+                />
+              )}
+            </View>
+          </ScrollView>
+          <ConfirmSubmitModal
+            visible={confirm}
+            answered={answered}
+            total={questions.length}
+            busy={submitting}
+            remaining={timer.remaining}
+            error={submitError}
+            onCancel={() => setConfirm(false)}
+            onSubmit={submit}
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  headerCenter: { flex: 1, gap: 2 },
-  questionCard: {
-    padding: 20,
-    borderWidth: 1,
-    gap: 12,
-  },
-  questionContent: { lineHeight: 28 },
-  navRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  navBtn: {
-    flex: 1,
-    height: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
-  },
-});
