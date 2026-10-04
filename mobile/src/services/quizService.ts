@@ -2,7 +2,7 @@ import { apiClient } from './apiClient';
 import { API_ENDPOINTS } from '../constants/api';
 import { MOCK_ENABLED } from './mock/config';
 import { mockCategoryService, mockQuizService } from './mock/mockService';
-import type { Category, Quiz, Question } from '../types';
+import type { Category, Quiz, Question, QuizQuestionsResponse } from '../types';
 
 export const categoryService = {
   getAll(): Promise<Category[]> {
@@ -27,8 +27,9 @@ export const quizService = {
     return apiClient.get<Quiz>(API_ENDPOINTS.QUIZ_BY_ID(id));
   },
 
-  getQuestions(quizId: number): Promise<Question[]> {
+  async getQuestions(quizId: number): Promise<Question[]> {
     if (MOCK_ENABLED) return mockQuizService.getQuestions(quizId);
-    return apiClient.get<Question[]>(API_ENDPOINTS.QUIZ_QUESTIONS(quizId));
+    const response = await apiClient.get<QuizQuestionsResponse>(API_ENDPOINTS.QUIZ_QUESTIONS(quizId));
+    return response.questions;
   },
 };
