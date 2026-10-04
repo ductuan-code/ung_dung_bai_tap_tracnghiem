@@ -55,6 +55,8 @@ export function PrimaryButton({
         style,
       ]}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!isDisabled, busy: loading }}
       activeOpacity={0.8}
       {...props}
     >
@@ -64,7 +66,11 @@ export function PrimaryButton({
         <Text
           style={[
             styles.text,
-            { color: textColor, fontSize: fontSize.md, fontWeight: fontWeight.semibold },
+            {
+              color: textColor,
+              fontSize: fontSize.md,
+              fontWeight: fontWeight.semibold,
+            },
           ]}
         >
           {title}
@@ -76,12 +82,14 @@ export function PrimaryButton({
 
 const styles = StyleSheet.create({
   button: {
-    height: 52,
+    minHeight: 52,
+    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
   },
   text: {
+    textAlign: 'center',
     letterSpacing: 0.3,
   },
 });

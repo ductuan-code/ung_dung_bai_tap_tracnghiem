@@ -1,4 +1,9 @@
-import { TouchableOpacity, Text, StyleSheet, type TouchableOpacityProps } from 'react-native';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  type TouchableOpacityProps,
+} from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 
 type OptionState = 'default' | 'selected' | 'correct' | 'incorrect';
@@ -9,7 +14,13 @@ interface OptionButtonProps extends TouchableOpacityProps {
   state?: OptionState;
 }
 
-export function OptionButton({ label, content, state = 'default', style, ...props }: OptionButtonProps) {
+export function OptionButton({
+  label,
+  content,
+  state = 'default',
+  style,
+  ...props
+}: OptionButtonProps) {
   const { colors, radius, fontSize, fontWeight } = useTheme();
 
   const bgColor =
@@ -53,13 +64,26 @@ export function OptionButton({ label, content, state = 'default', style, ...prop
       activeOpacity={0.75}
       disabled={state === 'correct' || state === 'incorrect'}
       accessibilityRole="radio"
-      accessibilityState={{ selected: state === 'selected' || state === 'correct' }}
+      accessibilityState={{
+        selected: state === 'selected' || state === 'correct',
+      }}
       {...props}
     >
-      <Text style={[styles.label, { color: borderColor, fontSize: fontSize.sm, fontWeight: fontWeight.bold }]}>
+      <Text
+        style={[
+          styles.label,
+          {
+            color: state === 'default' ? colors.textSecondary : textColor,
+            fontSize: fontSize.sm,
+            fontWeight: fontWeight.bold,
+          },
+        ]}
+      >
         {label}
       </Text>
-      <Text style={[styles.content, { color: textColor, fontSize: fontSize.md }]}>
+      <Text
+        style={[styles.content, { color: textColor, fontSize: fontSize.md }]}
+      >
         {content}
       </Text>
     </TouchableOpacity>

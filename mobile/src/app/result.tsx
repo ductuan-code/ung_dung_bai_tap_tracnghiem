@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,33 +14,19 @@ import { resultService } from '@/services/resultService';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { PrimaryButton } from '@/components/PrimaryButton';
-import type { Result } from '@/types';
-
-const OPTION_LABELS = ['A', 'B', 'C', 'D'];
+import { useScreenData } from '@/hooks/useScreenData';
+import { scoreLabel, percent, routeId } from '@/utils/study';
+import { EmptyState } from '@/components/EmptyState';
 
 export default function ResultScreen() {
   const { colors, spacing, fontSize, fontWeight, radius, shadow } = useTheme();
   const { resultId } = useLocalSearchParams<{ resultId: string }>();
 
-  const [result, setResult] = useState<Result | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!resultId) return;
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await resultService.getById(Number(resultId));
-        setResult(data);
-      } catch {
-        setError('Không thể tải kết quả. Vui lòng thử lại.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [resultId]);
+  const loader = useCallback(
+    async () => resultService.getById(routeId(resultId)),
+    [resultId],
+  );
+  const { data: result, loading, error, refresh } = useScreenData(loader);
 
   if (loading) return <LoadingScreen message="Đang tải kết quả..." />;
 
@@ -50,16 +36,19 @@ export default function ResultScreen() {
     return colors.incorrect;
   }
 
-  function getScoreLabel(score: number) {
-    if (score >= 80) return 'Xuất sắc! 🎉';
-    if (score >= 50) return 'Khá tốt! 👍';
-    return 'Cố gắng hơn nhé! 💪';
-  }
-
   return (
     <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
       {/* Header */}
-      <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md }]}>
+      <View
+        style={[
+          styles.header,
+          {
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.md,
+            paddingBottom: spacing.md,
+          },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.replace('/(tabs)')}
           accessibilityRole="button"
@@ -67,48 +56,136 @@ export default function ResultScreen() {
         >
           <Ionicons name="home-outline" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text, fontSize: fontSize.lg, fontWeight: fontWeight.semibold }]}>
+        <Text
+          style={[
+            styles.headerTitle,
+            {
+              color: colors.text,
+              fontSize: fontSize.lg,
+              fontWeight: fontWeight.semibold,
+            },
+          ]}
+        >
           Kết quả
         </Text>
       </View>
 
       {error && (
         <View style={{ paddingHorizontal: spacing.lg }}>
-          <ErrorMessage message={error} />
+          <ErrorMessage message={error} onRetry={refresh} />
         </View>
       )}
 
       {result && (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md }}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.lg,
+            paddingBottom: spacing.xxl,
+            gap: spacing.md,
+          }}
           showsVerticalScrollIndicator={false}
         >
           {/* Score card */}
-          <View style={[styles.scoreCard, { backgroundColor: colors.card, borderRadius: radius.xl, borderColor: colors.border, ...shadow.md }]}>
-            <Text style={[styles.quizTitle, { color: colors.textSecondary, fontSize: fontSize.sm }]} numberOfLines={2}>
+          <View
+            style={[
+              styles.scoreCard,
+              {
+                backgroundColor: colors.card,
+                borderRadius: radius.xl,
+                borderColor: colors.border,
+                ...shadow.md,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.quizTitle,
+                { color: colors.textSecondary, fontSize: fontSize.sm },
+              ]}
+              numberOfLines={2}
+            >
               {result.quizTitle}
             </Text>
-            <View style={[styles.scoreCircle, { borderColor: getScoreColor(result.score), backgroundColor: getScoreColor(result.score) + '15' }]}>
-              <Text style={[styles.scoreNumber, { color: getScoreColor(result.score), fontSize: fontSize.xxxl, fontWeight: fontWeight.extrabold }]}>
-                {result.score}%
+            <View
+              style={[
+                styles.scoreCircle,
+                {
+                  borderColor: getScoreColor(result.score),
+                  backgroundColor: getScoreColor(result.score) + '15',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.scoreNumber,
+                  {
+                    color: getScoreColor(result.score),
+                    fontSize: fontSize.xxl,
+                    fontWeight: fontWeight.extrabold,
+                  },
+                ]}
+              >
+                {percent(result.score)}
               </Text>
             </View>
-            <Text style={[styles.scoreLabel, { color: getScoreColor(result.score), fontSize: fontSize.lg, fontWeight: fontWeight.semibold }]}>
-              {getScoreLabel(result.score)}
+            <Text
+              style={[
+                styles.scoreLabel,
+                {
+                  color: getScoreColor(result.score),
+                  fontSize: fontSize.lg,
+                  fontWeight: fontWeight.semibold,
+                },
+              ]}
+            >
+              {scoreLabel(result.score)}
             </Text>
             <View style={[styles.statRow, { borderTopColor: colors.border }]}>
-              <StatItem label="Đúng" value={String(result.correctAnswers)} color={colors.correct} fontSize={fontSize} fontWeight={fontWeight} colors={colors} />
-              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-              <StatItem label="Sai" value={String(result.totalQuestions - result.correctAnswers)} color={colors.incorrect} fontSize={fontSize} fontWeight={fontWeight} colors={colors} />
-              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
-              <StatItem label="Tổng" value={String(result.totalQuestions)} color={colors.text} fontSize={fontSize} fontWeight={fontWeight} colors={colors} />
+              <StatItem
+                label="Đúng"
+                value={String(result.correctAnswers)}
+                color={colors.correct}
+                fontSize={fontSize}
+                fontWeight={fontWeight}
+                colors={colors}
+              />
+              <View
+                style={[styles.statDivider, { backgroundColor: colors.border }]}
+              />
+              <StatItem
+                label="Sai"
+                value={String(result.totalQuestions - result.correctAnswers)}
+                color={colors.incorrect}
+                fontSize={fontSize}
+                fontWeight={fontWeight}
+                colors={colors}
+              />
+              <View
+                style={[styles.statDivider, { backgroundColor: colors.border }]}
+              />
+              <StatItem
+                label="Tổng"
+                value={String(result.totalQuestions)}
+                color={colors.text}
+                fontSize={fontSize}
+                fontWeight={fontWeight}
+                colors={colors}
+              />
             </View>
           </View>
 
           {/* Chi tiết từng câu */}
           {result.details && result.details.length > 0 && (
             <View style={{ gap: 10 }}>
-              <Text style={[{ color: colors.text, fontSize: fontSize.md, fontWeight: fontWeight.semibold }]}>
+              <Text
+                style={[
+                  {
+                    color: colors.text,
+                    fontSize: fontSize.md,
+                    fontWeight: fontWeight.semibold,
+                  },
+                ]}
+              >
                 Chi tiết từng câu
               </Text>
               {result.details.map((detail, idx) => (
@@ -117,36 +194,90 @@ export default function ResultScreen() {
                   style={[
                     styles.detailCard,
                     {
-                      backgroundColor: detail.isCorrect ? colors.correctBg : colors.incorrectBg,
-                      borderColor: detail.isCorrect ? colors.correct : colors.incorrect,
+                      backgroundColor: detail.isCorrect
+                        ? colors.correctBg
+                        : colors.incorrectBg,
+                      borderColor: detail.isCorrect
+                        ? colors.correct
+                        : colors.incorrect,
                       borderRadius: radius.md,
                     },
                   ]}
                 >
                   <View style={styles.detailHeader}>
                     <Ionicons
-                      name={detail.isCorrect ? 'checkmark-circle' : 'close-circle'}
+                      name={
+                        detail.isCorrect ? 'checkmark-circle' : 'close-circle'
+                      }
                       size={20}
-                      color={detail.isCorrect ? colors.correct : colors.incorrect}
+                      color={
+                        detail.isCorrect ? colors.correct : colors.incorrect
+                      }
                     />
-                    <Text style={[styles.detailQuestion, { color: colors.text, fontSize: fontSize.sm, fontWeight: fontWeight.medium }]}>
+                    <Text
+                      style={[
+                        styles.detailQuestion,
+                        {
+                          color: colors.text,
+                          fontSize: fontSize.sm,
+                          fontWeight: fontWeight.medium,
+                        },
+                      ]}
+                    >
                       Câu {idx + 1}: {detail.questionContent}
                     </Text>
                   </View>
-                  <Text style={[{ color: detail.isCorrect ? colors.correct : colors.incorrect, fontSize: fontSize.xs, fontWeight: fontWeight.medium }]}>
-                    Bạn chọn: {detail.selectedAnswerContent}
+                  <Text
+                    style={[
+                      {
+                        color: detail.isCorrect
+                          ? colors.correct
+                          : colors.incorrect,
+                        fontSize: fontSize.xs,
+                        fontWeight: fontWeight.medium,
+                      },
+                    ]}
+                  >
+                    Bạn chọn:{' '}
+                    {detail.selectedAnswerId == null ||
+                    detail.selectedAnswerContent == null
+                      ? 'Chưa trả lời'
+                      : detail.selectedAnswerContent}
                   </Text>
-                  {!detail.isCorrect && (
-                    <Text style={[{ color: colors.correct, fontSize: fontSize.xs, fontWeight: fontWeight.medium }]}>
+                  {
+                    <Text
+                      style={[
+                        {
+                          color: colors.correct,
+                          fontSize: fontSize.xs,
+                          fontWeight: fontWeight.medium,
+                        },
+                      ]}
+                    >
                       Đáp án đúng: {detail.correctAnswerContent}
                     </Text>
-                  )}
+                  }
                 </View>
               ))}
             </View>
           )}
 
           {/* Actions */}
+          {!result.details?.length && (
+            <EmptyState
+              title="Chưa có chi tiết"
+              message="Kết quả này không có chi tiết câu trả lời."
+            />
+          )}
+          <PrimaryButton
+            title="Làm lại"
+            onPress={() =>
+              router.replace({
+                pathname: '/quiz-detail',
+                params: { quizId: result.quizId },
+              })
+            }
+          />
           <PrimaryButton
             title="Về trang chủ"
             onPress={() => router.replace('/(tabs)')}
@@ -179,8 +310,14 @@ function StatItem({
 }) {
   return (
     <View style={styles.statItem}>
-      <Text style={[{ color, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>{value}</Text>
-      <Text style={[{ color: colors.textSecondary, fontSize: fontSize.xs }]}>{label}</Text>
+      <Text
+        style={[{ color, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}
+      >
+        {value}
+      </Text>
+      <Text style={[{ color: colors.textSecondary, fontSize: fontSize.xs }]}>
+        {label}
+      </Text>
     </View>
   );
 }

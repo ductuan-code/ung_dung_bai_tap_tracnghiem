@@ -1,122 +1,65 @@
-import { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-} from 'react-native';
+import { useCallback, useState } from 'react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/hooks/useTheme';
 import { quizService } from '@/services/quizService';
+import { useScreenData } from '@/hooks/useScreenData';
+import { Screen, PageHeading } from '@/components/Screen';
+import { SearchBar } from '@/components/SearchBar';
 import { QuizCard } from '@/components/QuizCard';
-import { LoadingScreen } from '@/components/LoadingScreen';
+import { EmptyState } from '@/components/EmptyState';
 import { ErrorMessage } from '@/components/ErrorMessage';
-import type { Quiz } from '@/types';
-
+import { LoadingScreen } from '@/components/LoadingScreen';
+import { matchesTitle, routeId } from '@/utils/study';
 export default function QuizListScreen() {
-  const { colors, spacing, fontSize, fontWeight } = useTheme();
   const { categoryId, categoryName } = useLocalSearchParams<{
     categoryId: string;
     categoryName: string;
   }>();
-
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchQuizzes = useCallback(async () => {
-    if (!categoryId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await quizService.getByCategory(Number(categoryId));
-      setQuizzes(data);
-    } catch {
-      setError('Không thể tải danh sách quiz. Vui lòng thử lại.');
-    } finally {
-      setLoading(false);
-    }
-  }, [categoryId]);
-
-  useEffect(() => {
-    fetchQuizzes();
-  }, [fetchQuizzes]);
-
-  if (loading) return <LoadingScreen message="Đang tải quiz..." />;
-
+  const loader = useCallback(
+    async () => quizService.getByCategory(routeId(categoryId)),
+    [categoryId],
+  );
+  const { data, loading, error, refresh } = useScreenData(loader);
+  const [search, setSearch] = useState('');
+  const rows = data?.filter((q) => matchesTitle(q.title, search)) ?? [];
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.md }]}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Quay lại"
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={[styles.headerTitle, { color: colors.text, fontSize: fontSize.lg, fontWeight: fontWeight.semibold }]} numberOfLines={1}>
-            {categoryName ?? 'Danh sách Quiz'}
-          </Text>
-          <Text style={[{ color: colors.textSecondary, fontSize: fontSize.xs }]}>
-            {quizzes.length} quiz
-          </Text>
-        </View>
-      </View>
-
-      {error && (
-        <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
-          <ErrorMessage message={error} onRetry={fetchQuizzes} />
-        </View>
-      )}
-
-      <FlatList
-        data={quizzes}
-        keyExtractor={(item) => String(item.quizId)}
-        renderItem={({ item }) => (
-          <QuizCard
-            quiz={item}
-            onPress={() =>
-              router.push({ pathname: '/quiz-detail', params: { quizId: item.quizId } })
-            }
-          />
-        )}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: 12 }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          !error ? (
-            <View style={styles.empty}>
-              <Text style={[{ color: colors.textSecondary, fontSize: fontSize.md, textAlign: 'center' }]}>
-                Danh mục này chưa có quiz nào.
-              </Text>
-            </View>
-          ) : null
+    <Screen refreshing={loading && !!data} onRefresh={refresh}>
+      <PageHeading
+        back
+        title={categoryName || 'Đề theo danh mục'}
+        subtitle={
+          data
+            ? `${data.length} đề thi sẵn sàng`
+            : 'Chọn bài kiểm tra để bắt đầu.'
         }
       />
-    </SafeAreaView>
+      <SearchBar
+        value={search}
+        onChange={setSearch}
+        placeholder="Tìm kiếm bài kiểm tra..."
+      />
+      {loading && !data ? (
+        <LoadingScreen message="Đang tải đề thi..." />
+      ) : error ? (
+        <ErrorMessage message={error} onRetry={refresh} />
+      ) : rows.length ? (
+        rows.map((quiz) => (
+          <QuizCard
+            key={quiz.quizId}
+            quiz={quiz}
+            onPress={() =>
+              router.push({
+                pathname: '/quiz-detail',
+                params: { quizId: quiz.quizId },
+              })
+            }
+          />
+        ))
+      ) : (
+        <EmptyState
+          title="Chưa có đề phù hợp"
+          message="Thử từ khóa khác hoặc kéo xuống để cập nhật nội dung."
+        />
+      )}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  backBtn: {
-    padding: 4,
-  },
-  headerCenter: { flex: 1, gap: 2 },
-  headerTitle: {},
-  empty: {
-    marginTop: 64,
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-});
