@@ -37,7 +37,7 @@ export const Colors = {
     accent: '#38BDF8',
     text: '#F1F5F9',
     textSecondary: '#94A3B8',
-    textInverse: '#0F172A',
+    textInverse: '#FFFFFF',
     border: '#334155',
     borderFocus: '#3B82F6',
     correct: '#22C55E',

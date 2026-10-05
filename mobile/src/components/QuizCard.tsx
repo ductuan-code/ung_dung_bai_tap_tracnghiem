@@ -1,6 +1,13 @@
-import { TouchableOpacity, View, Text, StyleSheet, type TouchableOpacityProps } from 'react-native';
+import {
+  TouchableOpacity,
+  View,
+  Text,
+  StyleSheet,
+  type TouchableOpacityProps,
+} from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import type { Quiz } from '../types';
+import { Ionicons } from '@expo/vector-icons';
 
 interface QuizCardProps extends TouchableOpacityProps {
   quiz: Quiz;
@@ -26,30 +33,72 @@ export function QuizCard({ quiz, style, ...props }: QuizCardProps) {
       {...props}
     >
       <Text
-        style={[styles.title, { color: colors.text, fontSize: fontSize.md, fontWeight: fontWeight.semibold }]}
+        style={[
+          styles.title,
+          {
+            color: colors.text,
+            fontSize: fontSize.md,
+            fontWeight: fontWeight.semibold,
+          },
+        ]}
         numberOfLines={2}
       >
         {quiz.title}
       </Text>
       {quiz.description && (
         <Text
-          style={[styles.desc, { color: colors.textSecondary, fontSize: fontSize.sm }]}
+          style={[
+            styles.desc,
+            { color: colors.textSecondary, fontSize: fontSize.sm },
+          ]}
           numberOfLines={2}
         >
           {quiz.description}
         </Text>
       )}
       <View style={styles.meta}>
+        <Ionicons
+          name="document-text-outline"
+          size={16}
+          color={colors.accent}
+        />
         {quiz.questionCount !== undefined && (
-          <Text style={[styles.metaText, { color: colors.accent, fontSize: fontSize.xs, fontWeight: fontWeight.medium }]}>
+          <Text
+            style={[
+              styles.metaText,
+              {
+                color: colors.accent,
+                fontSize: fontSize.xs,
+                fontWeight: fontWeight.medium,
+              },
+            ]}
+          >
             {quiz.questionCount} câu hỏi
           </Text>
         )}
         {quiz.categoryName && (
-          <Text style={[styles.metaText, { color: colors.textSecondary, fontSize: fontSize.xs }]}>
+          <Text
+            style={[
+              styles.metaText,
+              { color: colors.textSecondary, fontSize: fontSize.xs },
+            ]}
+          >
             {quiz.categoryName}
           </Text>
         )}
+      </View>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 4,
+        }}
+      >
+        <Text style={{ color: colors.primary, fontSize: 12 }}>
+          Xem chi tiết
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color={colors.primary} />
       </View>
     </TouchableOpacity>
   );

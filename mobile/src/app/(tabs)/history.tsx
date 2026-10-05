@@ -1,170 +1,71 @@
-import { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-} from 'react-native';
-import { router } from 'expo-router';
-import { useTheme } from '@/hooks/useTheme';
+import { useState } from 'react';
 import { resultService } from '@/services/resultService';
+import { useScreenData } from '@/hooks/useScreenData';
+import { Screen, PageHeading } from '@/components/Screen';
+import { SearchBar } from '@/components/SearchBar';
+import { FilterChips } from '@/components/FilterChips';
+import { HistoryCard } from '@/components/HistoryCard';
+import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorMessage } from '@/components/ErrorMessage';
-import type { Result } from '@/types';
-
+import { matchesTitle, newestResults } from '@/utils/study';
+const loadHistory = async () =>
+  newestResults(await resultService.getMyResults());
 export default function HistoryScreen() {
-  const { colors, spacing, fontSize, fontWeight, radius, shadow } = useTheme();
-
-  const [results, setResults] = useState<Result[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchHistory = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await resultService.getMyResults();
-      // Mới nhất trước
-      setResults(data.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()));
-    } catch {
-      setError('Không thể tải lịch sử. Vui lòng thử lại.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
-
-  if (loading) return <LoadingScreen message="Đang tải lịch sử..." />;
-
-  function getScoreColor(score: number) {
-    if (score >= 80) return colors.correct;
-    if (score >= 50) return colors.warning;
-    return colors.incorrect;
-  }
-
-  function formatDate(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  }
-
+  const { data, loading, error, refresh } = useScreenData(loadHistory);
+  const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const rows =
+    data?.filter(
+      (r) =>
+        matchesTitle(r.quizTitle, search) &&
+        (filter === 'all' ||
+          (filter === 'high' ? r.score >= 80 : r.score < 80)),
+    ) ?? [];
   return (
-    <SafeAreaView style={[styles.flex, { backgroundColor: colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md }]}>
-        <Text style={[styles.title, { color: colors.text, fontSize: fontSize.xl, fontWeight: fontWeight.bold }]}>
-          Lịch sử làm bài
-        </Text>
-        <Text style={[{ color: colors.textSecondary, fontSize: fontSize.sm }]}>
-          {results.length} lần làm bài
-        </Text>
-      </View>
-
-      {/* Error */}
-      {error && (
-        <View style={{ paddingHorizontal: spacing.lg, marginBottom: spacing.md }}>
-          <ErrorMessage message={error} onRetry={fetchHistory} />
-        </View>
-      )}
-
-      <FlatList
-        data={results}
-        keyExtractor={(item) => String(item.resultId)}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.card,
-              {
-                backgroundColor: colors.card,
-                borderRadius: radius.lg,
-                borderColor: colors.border,
-                ...shadow.sm,
-              },
-            ]}
-            onPress={() => router.push({ pathname: '/result', params: { resultId: item.resultId } })}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel={`Xem kết quả quiz ${item.quizTitle}`}
-          >
-            <View style={styles.cardTop}>
-              <Text
-                style={[styles.quizTitle, { color: colors.text, fontSize: fontSize.md, fontWeight: fontWeight.semibold }]}
-                numberOfLines={2}
-              >
-                {item.quizTitle}
-              </Text>
-              <View style={[styles.scoreBadge, { backgroundColor: getScoreColor(item.score) + '20', borderRadius: radius.full }]}>
-                <Text style={[styles.scoreText, { color: getScoreColor(item.score), fontSize: fontSize.md, fontWeight: fontWeight.bold }]}>
-                  {item.score}%
-                </Text>
-              </View>
-            </View>
-            <View style={styles.cardBottom}>
-              <Text style={[{ color: colors.textSecondary, fontSize: fontSize.xs }]}>
-                {item.correctAnswers}/{item.totalQuestions} câu đúng
-              </Text>
-              <Text style={[{ color: colors.textSecondary, fontSize: fontSize.xs }]}>
-                {formatDate(item.completedAt)}
-              </Text>
-            </View>
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.xxl, gap: 12 }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          !error ? (
-            <View style={styles.empty}>
-              <Text style={[{ color: colors.textSecondary, fontSize: fontSize.md, textAlign: 'center' }]}>
-                Bạn chưa làm bài nào.{'\n'}Hãy bắt đầu từ trang chủ!
-              </Text>
-            </View>
-          ) : null
+    <Screen tab refreshing={loading && !!data} onRefresh={refresh}>
+      <PageHeading
+        title="Lịch sử làm bài"
+        subtitle={
+          data
+            ? `${data.length} lần làm bài · Mỗi lần luyện tập là một bước tiến`
+            : 'Nhìn lại hành trình luyện tập của bạn.'
         }
       />
-    </SafeAreaView>
+      <SearchBar
+        value={search}
+        onChange={setSearch}
+        placeholder="Tìm theo tên đề..."
+      />
+      <FilterChips
+        value={filter}
+        onChange={setFilter}
+        options={[
+          { key: 'all', label: 'Tất cả' },
+          { key: 'high', label: '≥ 80%' },
+          { key: 'low', label: '< 80%' },
+        ]}
+      />
+      {loading && !data ? (
+        <LoadingScreen message="Đang tải lịch sử..." />
+      ) : error ? (
+        <ErrorMessage message={error} onRetry={refresh} />
+      ) : rows.length ? (
+        rows.map((result) => (
+          <HistoryCard key={result.resultId} result={result} />
+        ))
+      ) : (
+        <EmptyState
+          title={
+            data?.length ? 'Không có kết quả phù hợp' : 'Bạn chưa làm bài nào'
+          }
+          message={
+            data?.length
+              ? 'Thử thay đổi từ khóa hoặc bộ lọc điểm.'
+              : 'Hãy chọn một đề thi và bắt đầu luyện tập.'
+          }
+        />
+      )}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  header: { gap: 4 },
-  title: {},
-  card: {
-    padding: 16,
-    borderWidth: 1,
-    gap: 10,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  quizTitle: { flex: 1, lineHeight: 22 },
-  scoreBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreText: {},
-  cardBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  empty: {
-    marginTop: 64,
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-});

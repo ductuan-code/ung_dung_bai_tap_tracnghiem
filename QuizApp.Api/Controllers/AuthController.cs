@@ -12,6 +12,22 @@ namespace QuizApp.Api.Controllers;
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class AuthController(AuthService auth) : ControllerBase
 {
+    [Authorize]
+    [HttpPut("change-password")]
+    public async Task<IActionResult> ChangePassword(ChangePasswordRequest request, CancellationToken ct)
+    {
+        if (!int.TryParse(User.FindFirst("sub")?.Value, NumberStyles.None,
+            CultureInfo.InvariantCulture, out var id) || id <= 0)
+            return Unauthorized();
+        return await auth.ChangePasswordAsync(id, request, ct) switch
+        {
+            ChangePasswordOutcome.Success => Ok(new { message = "Đổi mật khẩu thành công" }),
+            ChangePasswordOutcome.UserMissing => Unauthorized(),
+            ChangePasswordOutcome.WrongPassword => BadRequest(new { message = "Mật khẩu hiện tại không đúng." }),
+            _ => BadRequest(new { message = "Mật khẩu mới phải khác mật khẩu hiện tại." })
+        };
+    }
+
     [AllowAnonymous]
     [HttpPost("register")]
     public async Task<ActionResult<AuthResponse>> Register(RegisterRequest request, CancellationToken ct)

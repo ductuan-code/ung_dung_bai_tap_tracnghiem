@@ -1,6 +1,12 @@
-import { TouchableOpacity, Text, StyleSheet, type TouchableOpacityProps } from 'react-native';
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  type TouchableOpacityProps,
+} from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 import type { Category } from '../types';
+import { Ionicons } from '@expo/vector-icons';
 
 interface CategoryCardProps extends TouchableOpacityProps {
   category: Category;
@@ -25,15 +31,26 @@ export function CategoryCard({ category, style, ...props }: CategoryCardProps) {
       accessibilityLabel={`Danh mục ${category.name}`}
       {...props}
     >
+      <Ionicons name="layers-outline" size={25} color={colors.primary} />
       <Text
-        style={[styles.name, { color: colors.text, fontSize: fontSize.lg, fontWeight: fontWeight.semibold }]}
+        style={[
+          styles.name,
+          {
+            color: colors.text,
+            fontSize: fontSize.lg,
+            fontWeight: fontWeight.semibold,
+          },
+        ]}
         numberOfLines={1}
       >
         {category.name}
       </Text>
       {category.description && (
         <Text
-          style={[styles.desc, { color: colors.textSecondary, fontSize: fontSize.sm }]}
+          style={[
+            styles.desc,
+            { color: colors.textSecondary, fontSize: fontSize.sm },
+          ]}
           numberOfLines={2}
         >
           {category.description}
